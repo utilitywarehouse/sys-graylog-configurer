@@ -50,5 +50,16 @@ fi
 printf "\nSetup SSO plugin\n"
 sso_plugin_config='{"username_header":"X-Forwarded-User","email_header":"X-Forwarded-Email","default_group":"Admin","auto_create_user":true,"require_trusted_proxies":true}'
 curl -s -X PUT -H "Content-Type: application/json" -d "${sso_plugin_config}" "${graylog_api}/plugins/org.graylog.plugins.auth.sso/config"
+
+printf "\nSetup custom elastic search template\n"
+until curl -s "http://${ELASTICSEARCH_AUTHORITY}/_cluster/health"; do
+  echo 'elasticsearch not ready, sleeping for 3 seconds'
+  sleep 3
+done
+custom_mapping='{"template":"graylog_*","mappings":{"message":{"properties":{"id":{"type":"keyword"},"status":{"type":"keyword"}}}}}'
+curl -s -X PUT -H "Content-Type: application/json" -d "${custom_mapping}" "http://${ELASTICSEARCH_AUTHORITY}/_template/graylog-custom-mapping"
+# Rotate the active index to activate the new template
+curl -s -X POST "${graylog_api}/system/deflector/cycle"
+
 printf "\nGoing to sleep...\n"
 sleep infinity
