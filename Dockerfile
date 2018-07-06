@@ -2,6 +2,7 @@ FROM openjdk:8-jre
 
 ENV GRAYLOG_VERSION 2.4.5
 ENV SSO_PLUGIN_VERSION 2.4.2
+ENV METRICS_PLUGIN_VERSION 2.4.0-beta.3
 ENV GITHUB_BRANCH 2.4
 
 ENV GOSU_VERSION 1.10
@@ -26,6 +27,7 @@ RUN set -ex \
   && sha256sum -c "/tmp/graylog-${GRAYLOG_VERSION}.tgz.sha256.txt" \
   && tar -xzf "/tmp/graylog-${GRAYLOG_VERSION}.tgz" --strip-components=1 -C /usr/share/graylog \
   && wget -nv -O "/usr/share/graylog/plugin/graylog-plugin-auth-sso-${SSO_PLUGIN_VERSION}.jar" "https://github.com/Graylog2/graylog-plugin-auth-sso/releases/download/${SSO_PLUGIN_VERSION}/graylog-plugin-auth-sso-${SSO_PLUGIN_VERSION}.jar" \
+  && wget -nv -O "/usr/share/graylog/plugin/metrics-reporter-prometheus-${METRICS_PLUGIN_VERSION}.jar" "https://github.com/graylog-labs/graylog-plugin-metrics-reporter/releases/download/${METRICS_PLUGIN_VERSION}/metrics-reporter-prometheus-${METRICS_PLUGIN_VERSION}.jar" \
   && wget -nv -O "/docker-entrypoint.sh" "https://raw.githubusercontent.com/Graylog2/graylog-docker/${GITHUB_BRANCH}/docker-entrypoint.sh" \
   && chmod +x /docker-entrypoint.sh \
   && chown -R graylog:graylog /usr/share/graylog \
