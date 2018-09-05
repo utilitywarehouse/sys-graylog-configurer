@@ -1,4 +1,4 @@
-version="1.1.0"
+version="1.2.0"
 
 build:
 	docker build -t quay.io/utilitywarehouse/sys-graylog-configurer:$(version) .
