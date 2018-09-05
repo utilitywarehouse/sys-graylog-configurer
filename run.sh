@@ -67,7 +67,7 @@ until curl -s "http://${ELASTICSEARCH_AUTHORITY}/_cluster/health"; do
   echo 'elasticsearch not ready, sleeping for 3 seconds'
   sleep 3
 done
-custom_mapping='{"template":"graylog_*","mappings":{"message":{"properties":{"id":{"type":"keyword"},"status":{"type":"keyword"}}}}}'
+custom_mapping='{"template":"graylog_*","mappings":{"message":{"properties":{"id":{"type":"keyword"},"level":{"type":"keyword"},"date":{"type":"keyword"},"status":{"type":"keyword"}}}}}'
 curl -s -X PUT -H "Content-Type: application/json" -d "${custom_mapping}" "http://${ELASTICSEARCH_AUTHORITY}/_template/graylog-custom-mapping"
 # Rotate the active index to activate the new template
 curl -s -X POST "${graylog_api}/system/deflector/cycle"
