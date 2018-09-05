@@ -36,7 +36,7 @@ fi
 
 printf "\nSetup tcp input\n"
 tcp_id=$(curl -s -XGET "${graylog_api}/system/inputs" | jq -r '.inputs[] | select(.title == "gelf_tcp_input") | .id')
-tcp_input='{"title":"gelf_tcp_input","type":"org.graylog2.inputs.gelf.tcp.GELFTCPInput","configuration":{"port":12201,"bind_address":"0.0.0.0"},"global":true}'
+tcp_input='{"title":"gelf_tcp_input","type":"org.graylog2.inputs.gelf.tcp.GELFTCPInput","configuration":{"port":12202,"bind_address":"0.0.0.0"},"global":true}'
 if [ ! "$tcp_id" ]; then
   curl -s -X POST -H "Content-Type: application/json" -d "${tcp_input}" "${graylog_api}/system/inputs"
   printf "\nUDP input created\n"
