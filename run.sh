@@ -34,6 +34,17 @@ else
   printf "\nUDP input updated\n"
 fi
 
+printf "\nSetup tcp input\n"
+tcp_id=$(curl -s -XGET "${graylog_api}/system/inputs" | jq -r '.inputs[] | select(.title == "gelf_tcp_input") | .id')
+tcp_input='{"title":"gelf_tcp_input","type":"org.graylog2.inputs.gelf.tcp.GELFTCPInput","configuration":{"port":12201,"bind_address":"0.0.0.0"},"global":true}'
+if [ ! "$tcp_id" ]; then
+  curl -s -X POST -H "Content-Type: application/json" -d "${tcp_input}" "${graylog_api}/system/inputs"
+  printf "\nUDP input created\n"
+else
+  curl -s -X PUT -H "Content-Type: application/json" -d "${tcp_input}" "${graylog_api}/system/inputs/${tcp_id}"
+  printf "\nUDP input updated\n"
+fi
+
 printf "\nSetup kubernetes extractor\n"
 udp_id=$(curl -s -XGET "${graylog_api}/system/inputs" | jq -r '.inputs[] | select(.title == "gelf_udp_input") | .id')
 k8s_extractor_id=$(curl -s -XGET "${graylog_api}/system/inputs/${udp_id}/extractors" | jq -r '.extractors[] | select(.title == "kubernetes") | .id')
