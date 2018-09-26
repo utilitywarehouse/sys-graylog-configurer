@@ -11,11 +11,11 @@ set_input()
 {
   input_name="$1"
   input_data="$2"
+  origin="$3"
 
   printf "\nSetup ${input_name}\n"
 
   input_id=$(curl -s -XGET "${graylog_api}/system/inputs" | jq -r '.inputs[] | select(.title == "'"${input_name}"'") | .id')
-
   if [ ! "${input_id}" ]; then
     curl -s -X POST -H "Content-Type: application/json" -d "${input_data}" "${graylog_api}/system/inputs"
     printf "\n${input_name} created\n"
@@ -23,18 +23,23 @@ set_input()
     curl -s -X PUT -H "Content-Type: application/json" -d "${input_data}" "${graylog_api}/system/inputs/${input_id}"
     printf "\n${input_name} updated\n"
   fi
+
+  if [ "${origin}" ]; then
+    input_id=$(curl -s -XGET "${graylog_api}/system/inputs" | jq -r '.inputs[] | select(.title == "'"${input_name}"'") | .id')
+    curl -s -X POST -H "Content-Type: application/json" -d '{"key":"origin","value":"'"${origin}"'"}' "${graylog_api}/system/inputs/${input_id}/staticfields"
+  fi
 }
 
 if [ "${AWS_CLOUDTRAIL_PROD_ENABLED}" = "true" ]; then
   input_name=aws_cloudtrail_input_prod
   input_data='{"title":"'"${input_name}"'","type":"org.graylog.aws.inputs.cloudtrail.CloudTrailInput","configuration":{"aws_sqs_region":"eu-west-1","aws_s3_region":"eu-west-1","aws_sqs_queue_name":"'"${AWS_SQS_QUEUE_PROD}"'","aws_access_key":"'"${AWS_ID_PROD}"'","aws_secret_key":"'"${AWS_SECRET_PROD}"'"},"global":true}'
-  set_input ${input_name} ${input_data}
+  set_input ${input_name} ${input_data} cloudtrail-prod
 fi
 
 if [ "${AWS_CLOUDTRAIL_DEV_ENABLED}" = "true" ]; then
   input_name=aws_cloudtrail_input_dev
   input_data='{"title":"'"${input_name}"'","type":"org.graylog.aws.inputs.cloudtrail.CloudTrailInput","configuration":{"aws_sqs_region":"eu-west-1","aws_s3_region":"eu-west-1","aws_sqs_queue_name":"'"${AWS_SQS_QUEUE_DEV}"'","aws_access_key":"'"${AWS_ID_DEV}"'","aws_secret_key":"'"${AWS_SECRET_DEV}"'"},"global":true}'
-  set_input ${input_name} ${input_data}
+  set_input ${input_name} ${input_data} cloudtrail-dev
 fi
 
 input_data='{"title":"gelf_tcp_input","type":"org.graylog2.inputs.gelf.tcp.GELFTCPInput","configuration":{"port":12202,"bind_address":"0.0.0.0"},"global":true}'
