@@ -3,6 +3,7 @@ until curl -s "http://127.0.0.1:9000/api/system/lbstatus"; do
   echo 'graylog not ready, sleeping for 3 seconds'
   sleep 3
 done
+sleep 10
 printf "\n"
 
 graylog_api="http://admin:${ADMIN_PASSWORD}@127.0.0.1:9000/api"
@@ -18,15 +19,19 @@ set_input()
   input_id=$(curl -s -XGET "${graylog_api}/system/inputs" | jq -r '.inputs[] | select(.title == "'"${input_name}"'") | .id')
   if [ ! "${input_id}" ]; then
     curl -s -X POST -H "Content-Type: application/json" -d "${input_data}" "${graylog_api}/system/inputs"
+    sleep 5
     printf "\n${input_name} created\n"
   else
     curl -s -X PUT -H "Content-Type: application/json" -d "${input_data}" "${graylog_api}/system/inputs/${input_id}"
+    sleep 5
     printf "\n${input_name} updated\n"
   fi
 
   if [ "${origin}" ]; then
     input_id=$(curl -s -XGET "${graylog_api}/system/inputs" | jq -r '.inputs[] | select(.title == "'"${input_name}"'") | .id')
     curl -s -X POST -H "Content-Type: application/json" -d '{"key":"origin","value":"'"${origin}"'"}' "${graylog_api}/system/inputs/${input_id}/staticfields"
+    sleep 5
+    printf "${origin} origin added to ${input_name}\n"
   fi
 }
 
@@ -62,7 +67,7 @@ printf "\nSetup SSO plugin\n"
 sso_plugin_config='{"username_header":"X-Forwarded-User","email_header":"X-Forwarded-Email","default_group":"Admin","auto_create_user":true,"require_trusted_proxies":true}'
 curl -s -X PUT -H "Content-Type: application/json" -d "${sso_plugin_config}" "${graylog_api}/plugins/org.graylog.plugins.auth.sso/config"
 
-printf "\nSetup custom elastic search template\n"
+printf "\n\nSetup custom elastic search template\n"
 until curl -s "http://${ELASTICSEARCH_AUTHORITY}/_cluster/health"; do
   echo 'elasticsearch not ready, sleeping for 3 seconds'
   sleep 3
@@ -72,5 +77,5 @@ curl -s -X PUT -H "Content-Type: application/json" -d "${custom_template}" "http
 # Rotate the active index to activate the new template
 curl -s -X POST "${graylog_api}/system/deflector/cycle"
 
-printf "\nGoing to sleep...\n"
+printf "\n\nGoing to sleep...\n"
 sleep infinity
