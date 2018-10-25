@@ -81,15 +81,19 @@ printf "\nSetup SSO plugin\n"
 sso_plugin_config='{"username_header":"X-Forwarded-User","email_header":"X-Forwarded-Email","default_group":"Admin","auto_create_user":true,"require_trusted_proxies":true}'
 curl -s -X PUT -H "Content-Type: application/json" -d "${sso_plugin_config}" "${graylog_api}/plugins/org.graylog.plugins.auth.sso/config"
 
-printf "\n\nSetup custom elastic search template\n"
-until curl -s "http://${ELASTICSEARCH_AUTHORITY}/_cluster/health"; do
-  echo 'elasticsearch not ready, sleeping for 3 seconds'
-  sleep 3
-done
-custom_template='{"template":"graylog_*","settings":{"refresh_interval":"30s"},"mappings":{"message":{"properties":{"id":{"type":"keyword"},"level":{"type":"keyword"},"date":{"type":"keyword"},"status":{"type":"keyword"}}}}}'
-curl -s -X PUT -H "Content-Type: application/json" -d "${custom_template}" "http://${ELASTICSEARCH_AUTHORITY}/_template/graylog-custom-template"
-# Rotate the active index to activate the new template
-curl -s -X POST "${graylog_api}/system/deflector/cycle"
+if [ "${ELASTICSEARCH_CUSTOM_TEMPLATE}" ]; then
+  printf "\n\nSetup custom elastic search template\n"
+  until curl -s "http://${ELASTICSEARCH_AUTHORITY}/_cluster/health"; do
+    echo 'elasticsearch not ready, sleeping for 3 seconds'
+    sleep 3
+  done
+
+  custom_template=$(echo "${ELASTICSEARCH_CUSTOM_TEMPLATE}" | jq -c)
+  curl -s -X PUT -H "Content-Type: application/json" -d "${custom_template}" "http://${ELASTICSEARCH_AUTHORITY}/_template/graylog-custom-template"
+  sleep 5
+  # Rotate the active index to activate the new template
+  curl -s -X POST "${graylog_api}/system/deflector/cycle"
+fi
 
 printf "\n\nGoing to sleep...\n"
 sleep infinity
