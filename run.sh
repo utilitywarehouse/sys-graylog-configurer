@@ -35,6 +35,27 @@ set_input()
   fi
 }
 
+set_extractor()
+{
+  extractor="$1"
+  input_id="$2"
+
+  printf "\nSetup ${extractor} extractor\n"
+
+  extractor_id=$(curl -s -XGET "${graylog_api}/system/inputs/${input_id}/extractors" | jq -r '.extractors[] | select(.title == "'"${extractor}"'") | .id')
+  extractor_data='{"title":"'"${extractor}"'","cut_or_copy":"copy","source_field":"'"${extractor}"'","extractor_type":"json","target_field":"","extractor_config":{"key_prefix":"'"${extractor}"'_"},"converters":{},"condition_type":"none","condition_value":""}'
+  
+  if [ ! "${extractor_id}" ]; then
+    curl -s -X POST -H "Content-Type: application/json" -d "${extractor_data}" "${graylog_api}/system/inputs/${input_id}/extractors"
+    sleep 5
+    printf "\n${extractor} extractor created\n"
+  else
+    curl -s -X PUT -H "Content-Type: application/json" -d "${extractor_data}" "${graylog_api}/system/inputs/${input_id}/extractors/${extractor_id}"
+    sleep 5
+    printf "\n${extractor} extractor updated\n"
+  fi
+}
+
 if [ "${AWS_CLOUDTRAIL_PROD_ENABLED}" = "true" ]; then
   input_name=aws_cloudtrail_input_prod
   input_data='{"title":"'"${input_name}"'","type":"org.graylog.aws.inputs.cloudtrail.CloudTrailInput","configuration":{"aws_sqs_region":"eu-west-1","aws_s3_region":"eu-west-1","aws_sqs_queue_name":"'"${AWS_SQS_QUEUE_PROD}"'","aws_access_key":"'"${AWS_ID_PROD}"'","aws_secret_key":"'"${AWS_SECRET_PROD}"'"},"global":true}'
@@ -50,18 +71,11 @@ fi
 input_data='{"title":"gelf_tcp_input","type":"org.graylog2.inputs.gelf.tcp.GELFTCPInput","configuration":{"port":12202,"bind_address":"0.0.0.0"},"global":true}'
 set_input gelf_tcp_input ${input_data}
 
-printf "\nSetup kubernetes extractor\n"
+printf "\nSetup extractors\n"
 tcp_input_id=$(curl -s -XGET "${graylog_api}/system/inputs" | jq -r '.inputs[] | select(.title == "gelf_tcp_input") | .id')
-k8s_extractor_id=$(curl -s -XGET "${graylog_api}/system/inputs/${tcp_input_id}/extractors" | jq -r '.extractors[] | select(.title == "kubernetes") | .id')
-k8s_extractor='{"title":"kubernetes","cut_or_copy":"copy","source_field":"kubernetes","extractor_type":"json","target_field":"","extractor_config":{"key_prefix":"k8s_"},"converters":{},"condition_type":"none","condition_value":""}'
-
-if [ ! "${k8s_extractor_id}" ]; then
-  curl -s -X POST -H "Content-Type: application/json" -d "${k8s_extractor}" "${graylog_api}/system/inputs/${tcp_input_id}/extractors"
-  printf "\nk8s extractor created\n"
-else
-  curl -s -X PUT -H "Content-Type: application/json" -d "${k8s_extractor}" "${graylog_api}/system/inputs/${tcp_input_id}/extractors/${k8s_extractor_id}"
-  printf "\nk8s extractor updated\n"
-fi
+for e in ${EXTRACTORS}; do
+  set_extractor ${e} ${tcp_input_id}
+done
 
 printf "\nSetup SSO plugin\n"
 sso_plugin_config='{"username_header":"X-Forwarded-User","email_header":"X-Forwarded-Email","default_group":"Admin","auto_create_user":true,"require_trusted_proxies":true}'
