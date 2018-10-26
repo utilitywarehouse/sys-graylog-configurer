@@ -1,6 +1,6 @@
 FROM alpine
 
-COPY run.sh /
+COPY graylog-configurer /
 
 RUN apk add --no-cache curl jq coreutils
 
