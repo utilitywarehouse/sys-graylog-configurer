@@ -3,7 +3,7 @@ Idempotent configurer for graylog
 
 ## Configuration through environmental variables
 * `ADMIN_PASSWORD`: graylog api admin password
-* `EXTRACTORS`: space separated list of fields to be json parsed and ingested as indexed fields. Eg: `"kubernetes message log message_log"`
+* `EXTRACTORS`: space separated list of fields to be json parsed and have their child fields indexed. Child fields will be indexed as `parent_field.child_field`. Eg: `"kubernetes message my_field"`
 * `ELASTICSEARCH_AUTHORITY`: elasticserach host and port. Eg: `elasticsearch:9200`
 * `ELASTICSEARCH_CUSTOM_TEMPLATE`: json template to complement graylog default template. Eg:
 ```
