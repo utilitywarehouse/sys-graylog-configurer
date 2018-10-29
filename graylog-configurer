@@ -101,7 +101,6 @@ fi
 if [ "${errors}" ]; then
   printf "\n\e[1;31mConfigurer found the following errors: \e[0m${errors}"
   printf "\n\e[1;31mConfiguration might be out of sync. Please run the configurer again.\e[0m"
-  exit 1
 fi
 
 printf "\n\nGoing to sleep...\n"
