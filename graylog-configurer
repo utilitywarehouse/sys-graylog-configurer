@@ -1,4 +1,6 @@
 #!/bin/sh
+errors=""
+
 until curl -s "http://127.0.0.1:9000/api/system/lbstatus"; do
   echo 'graylog not ready, sleeping for 3 seconds'
   sleep 3
@@ -18,18 +20,18 @@ set_input()
 
   input_id=$(curl -s -XGET "${graylog_api}/system/inputs" | jq -r '.inputs[] | select(.title == "'"${input_name}"'") | .id')
   if [ ! "${input_id}" ]; then
-    curl -s -X POST -H "Content-Type: application/json" -d "${input_data}" "${graylog_api}/system/inputs"
+    curl -sf -X POST -H "Content-Type: application/json" -d "${input_data}" "${graylog_api}/system/inputs" || errors="${errors}failed to create ${input_name} input, "
     sleep 5
     printf "\n${input_name} created\n"
   else
-    curl -s -X PUT -H "Content-Type: application/json" -d "${input_data}" "${graylog_api}/system/inputs/${input_id}"
+    curl -sf -X PUT -H "Content-Type: application/json" -d "${input_data}" "${graylog_api}/system/inputs/${input_id}" || errors="${errors}failed to update ${input_name} input, "
     sleep 5
     printf "\n${input_name} updated\n"
   fi
 
   if [ "${origin}" ]; then
     input_id=$(curl -s -XGET "${graylog_api}/system/inputs" | jq -r '.inputs[] | select(.title == "'"${input_name}"'") | .id')
-    curl -s -X POST -H "Content-Type: application/json" -d '{"key":"origin","value":"'"${origin}"'"}' "${graylog_api}/system/inputs/${input_id}/staticfields"
+    curl -sf -X POST -H "Content-Type: application/json" -d '{"key":"origin","value":"'"${origin}"'"}' "${graylog_api}/system/inputs/${input_id}/staticfields" || errors="${errors}failed to update ${origin} origin, "
     sleep 5
     printf "${origin} origin added to ${input_name}\n"
   fi
@@ -46,11 +48,12 @@ set_extractor()
   extractor_data='{"title":"'"${extractor}"'","cut_or_copy":"copy","source_field":"'"${extractor}"'","extractor_type":"json","target_field":"","extractor_config":{"key_prefix":"'"${extractor}"'."},"converters":{},"condition_type":"none","condition_value":""}'
   
   if [ ! "${extractor_id}" ]; then
-    curl -s -X POST -H "Content-Type: application/json" -d "${extractor_data}" "${graylog_api}/system/inputs/${input_id}/extractors"
+    curl -sf -X POST -H "Content-Type: application/json" -d "${extractor_data}" "${graylog_api}/system/inputs/${input_id}/extractors" || errors="${errors}failed to update ${extractor} extractor, "
     sleep 5
     printf "\n${extractor} extractor created\n"
   else
-    curl -s -X PUT -H "Content-Type: application/json" -d "${extractor_data}" "${graylog_api}/system/inputs/${input_id}/extractors/${extractor_id}"
+    echo "curling ${graylog_api}/system/inputs/${input_id}/extractors/${extractor_id}"
+    curl -sf -X PUT -H "Content-Type: application/json" -d "${extractor_data}" "${graylog_api}/system/inputs/${input_id}/extractors/${extractor_id}" || errors="${errors}failed to update ${extractor} extractor, "
     sleep 5
     printf "\n${extractor} extractor updated\n"
   fi
@@ -79,7 +82,7 @@ done
 
 printf "\nSetup SSO plugin\n"
 sso_plugin_config='{"username_header":"X-Forwarded-User","email_header":"X-Forwarded-Email","default_group":"Admin","auto_create_user":true,"require_trusted_proxies":true}'
-curl -s -X PUT -H "Content-Type: application/json" -d "${sso_plugin_config}" "${graylog_api}/plugins/org.graylog.plugins.auth.sso/config"
+curl -sf -X PUT -H "Content-Type: application/json" -d "${sso_plugin_config}" "${graylog_api}/plugins/org.graylog.plugins.auth.sso/config" || errors="${errors}failed to setup SSO plugin, "
 
 if [ "${ELASTICSEARCH_CUSTOM_TEMPLATE}" ]; then
   printf "\n\nSetup custom elastic search template\n"
@@ -89,10 +92,16 @@ if [ "${ELASTICSEARCH_CUSTOM_TEMPLATE}" ]; then
   done
 
   custom_template=$(echo "${ELASTICSEARCH_CUSTOM_TEMPLATE}" | jq -c)
-  curl -s -X PUT -H "Content-Type: application/json" -d "${custom_template}" "http://${ELASTICSEARCH_AUTHORITY}/_template/graylog-custom-template"
+  curl -sf -X PUT -H "Content-Type: application/json" -d "${custom_template}" "http://${ELASTICSEARCH_AUTHORITY}/_template/graylog-custom-template" || errors="${errors}failed to update elasticsearch custom template, "
   sleep 5
   # Rotate the active index to activate the new template
-  curl -s -X POST "${graylog_api}/system/deflector/cycle"
+  curl -sf -X POST "${graylog_api}/system/deflector/cycle" || errors="${errors}failed to cicle active index, "
+fi
+
+if [ "${errors}" ]; then
+  printf "\n\e[1;31mConfigurer found the following errors: \e[0m${errors}"
+  printf "\n\e[1;31mConfiguration might be out of sync. Please run the configurer again.\e[0m"
+  exit 1
 fi
 
 printf "\n\nGoing to sleep...\n"
