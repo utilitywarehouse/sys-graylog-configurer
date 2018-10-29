@@ -95,7 +95,7 @@ if [ "${ELASTICSEARCH_CUSTOM_TEMPLATE}" ]; then
   curl -sf -X PUT -H "Content-Type: application/json" -d "${custom_template}" "http://${ELASTICSEARCH_AUTHORITY}/_template/graylog-custom-template" || errors="${errors}failed to update elasticsearch custom template, "
   sleep 5
   # Rotate the active index to activate the new template
-  curl -sf -X POST "${graylog_api}/system/deflector/cycle" || errors="${errors}failed to cicle active index, "
+  curl -sf -X POST "${graylog_api}/system/deflector/cycle" || errors="${errors}failed to cycle active index, "
 fi
 
 if [ "${errors}" ]; then
