@@ -81,8 +81,28 @@ for e in ${EXTRACTORS}; do
 done
 
 printf "\nSetup SSO plugin\n"
-sso_plugin_config='{"username_header":"X-Forwarded-User","email_header":"X-Forwarded-Email","default_group":"Admin","auto_create_user":true,"require_trusted_proxies":true}'
+sso_role_name="sso_uw"
+sso_plugin_config='{"username_header":"X-Forwarded-User","email_header":"X-Forwarded-Email","default_group":"'"${sso_role_name}"'","auto_create_user":true,"require_trusted_proxies":true}'
 curl -sf -X PUT -H "Content-Type: application/json" -d "${sso_plugin_config}" "${graylog_api}/plugins/org.graylog.plugins.auth.sso/config" || errors="${errors}failed to setup SSO plugin, "
+
+printf "\nSetup sso permissions\n"
+sso_permissions=$(echo "${SSO_PERMISSIONS}" | jq -c '.')
+if [ ! "${sso_permissions}" ]; then
+  sso_permissions='["*"]'
+fi
+sso_role='{"name":"'"${sso_role_name}"'","permissions":'"${sso_permissions}"'}'
+existing_role=$(curl -s -H "Accept: application/json" -XGET "${graylog_api}/roles/${sso_role_name}" | jq -r '.name')
+if [ "${sso_role_name}" = "${existing_role}" ];then
+  curl -sf -X PUT -H "Content-Type: application/json" -d "${sso_role}" "${graylog_api}/roles/${sso_role_name}" || errors="${errors}failed to update ${sso_role_name} role, "
+  printf "\n${sso_role_name} role updated\n"
+else
+  curl -sf -X POST -H "Content-Type: application/json" -d "${sso_role}" "${graylog_api}/roles" || errors="${errors}failed to create ${sso_role_name} role, "
+  printf "\n${sso_role_name} role created\n"
+fi
+
+printf "\nConfigure authentication methods\n"
+auth_config='{"realm_order":["mongodb-session","sso","root-user","legacy-ldap","access-token","mongodb-password"],"disabled_realms":["legacy-ldap","access-token","mongodb-password"]}'
+curl -sf -X PUT -H "Content-Type: application/json" -d "${auth_config}" "${graylog_api}/system/authentication/config" || errors="${errors}failed to update authentication methods, "
 
 if [ "${ELASTICSEARCH_CUSTOM_TEMPLATE}" ]; then
   printf "\n\nSetup custom elastic search template\n"
