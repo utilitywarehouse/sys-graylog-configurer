@@ -6,7 +6,7 @@ Idempotent configurer for graylog
 * `EXTRACTORS`: space separated list of fields to be json parsed and have their child fields indexed. Child fields will be indexed as `parent_field.child_field`. Eg: `"kubernetes message my_field"`
 * `ELASTICSEARCH_AUTHORITY`: elasticserach host and port. Eg: `elasticsearch:9200`
 * `ELASTICSEARCH_CUSTOM_TEMPLATE`: json template to complement graylog default template. Eg:
-```
+```json
 {
   "template": "graylog_*",
   "settings": {
@@ -40,6 +40,14 @@ Idempotent configurer for graylog
     }
   }
 }
+```
+* `SSO_PERMISSIONS`: json array with the list of permissions for the users created via SSO. Defaults to admin if not present. Permission details in http://docs.graylog.org/en/2.4/pages/users_and_roles/permission_system.html. Eg:
+```json
+[
+  "system:read",
+  "savedsearches:*",
+  "journal:*"
+]
 ```
 
 ### Temporary cloudtrail configuration
