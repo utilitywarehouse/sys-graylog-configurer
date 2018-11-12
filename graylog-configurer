@@ -100,6 +100,9 @@ else
   printf "\n${sso_role_name} role created\n"
 fi
 
+printf "\nConfigure authentication methods\n"
+auth_config='{"realm_order":["mongodb-session","sso","root-user","legacy-ldap","access-token","mongodb-password"],"disabled_realms":["legacy-ldap","access-token","mongodb-password"]}'
+curl -sf -X PUT -H "Content-Type: application/json" -d "${auth_config}" "${graylog_api}/system/authentication/config" || errors="${errors}failed to update authentication methods, "
 
 if [ "${ELASTICSEARCH_CUSTOM_TEMPLATE}" ]; then
   printf "\n\nSetup custom elastic search template\n"
