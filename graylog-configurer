@@ -48,7 +48,7 @@ set_extractor()
   extractor_data='{"title":"'"${extractor}"'","cut_or_copy":"copy","source_field":"'"${extractor}"'","extractor_type":"json","target_field":"","extractor_config":{"key_prefix":"'"${extractor}"'."},"converters":{},"condition_type":"none","condition_value":""}'
   
   if [ ! "${extractor_id}" ]; then
-    curl -sf -X POST -H "Content-Type: application/json" -d "${extractor_data}" "${graylog_api}/system/inputs/${input_id}/extractors" || errors="${errors}failed to update ${extractor} extractor, "
+    curl -sf -X POST -H "Content-Type: application/json" -d "${extractor_data}" "${graylog_api}/system/inputs/${input_id}/extractors" || errors="${errors}failed to create ${extractor} extractor, "
     sleep 5
     printf "\n${extractor} extractor created\n"
   else
