@@ -59,6 +59,26 @@ set_extractor()
   fi
 }
 
+set_admin()
+{
+  username="$1"
+  # Password cannot be used to login, but is needed for user creation
+  password=$(cat /dev/urandom | tr -dc A-Za-z0-9 | head -c 32)
+
+  printf "\nSetup ${username} as admin\n"
+  user_id=$(curl -s -H "Accept: application/json" -XGET "${graylog_api}/users/${username}" | jq -r '. | select(.username == "'"${username}"'") | .id')
+  user_data='{"username":"'"${username}"'","email":"'"${username}"'@utilitywarehouse.co.uk","roles":["Admin"],"password":"'"${password}"'","full_name":"'"${username}"'", "permissions":[]}'
+  if [ "${user_id}" ]; then
+    curl -sf -X PUT -H "Content-Type: application/json" -d "${user_data}" "${graylog_api}/users/${username}" || errors="${errors}failed to update ${username} admin, "
+    sleep 5
+    printf "\n${username} admin updated\n"
+  else
+    curl -sf -X POST -H "Content-Type: application/json" -d "${user_data}" "${graylog_api}/users" || errors="${errors}failed to create ${username} admin, "
+    sleep 5
+    printf "\n${username} admin created\n"
+  fi
+}
+
 if [ "${AWS_CLOUDTRAIL_PROD_ENABLED}" = "true" ]; then
   input_name=aws_cloudtrail_input_prod
   input_data='{"title":"'"${input_name}"'","type":"org.graylog.aws.inputs.cloudtrail.CloudTrailInput","configuration":{"aws_sqs_region":"eu-west-1","aws_s3_region":"eu-west-1","aws_sqs_queue_name":"'"${AWS_SQS_QUEUE_PROD}"'","aws_access_key":"'"${AWS_ID_PROD}"'","aws_secret_key":"'"${AWS_SECRET_PROD}"'"},"global":true}'
@@ -103,6 +123,13 @@ fi
 printf "\nConfigure authentication methods\n"
 auth_config='{"realm_order":["mongodb-session","sso","root-user","legacy-ldap","access-token","mongodb-password"],"disabled_realms":["legacy-ldap","access-token","mongodb-password"]}'
 curl -sf -X PUT -H "Content-Type: application/json" -d "${auth_config}" "${graylog_api}/system/authentication/config" || errors="${errors}failed to update authentication methods, "
+
+if [ "${ADMINS}" ]; then
+  printf "\nSetup admins\n"
+  for a in ${ADMINS}; do
+    set_admin "${a}"
+  done
+fi
 
 if [ "${ELASTICSEARCH_CUSTOM_TEMPLATE}" ]; then
   printf "\n\nSetup custom elastic search template\n"
