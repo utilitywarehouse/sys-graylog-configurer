@@ -105,11 +105,13 @@ if [ "${AWS_CLOUDTRAIL_ACCOUNTS}" ]; then
   done
 fi
 
-printf "\nSetup extractors\n"
-tcp_input_id=$(curl -s -XGET "${graylog_api}/system/inputs" | jq -r '.inputs[] | select(.title == "gelf_tcp_input") | .id')
-for e in ${EXTRACTORS}; do
-  set_extractor ${e} ${tcp_input_id}
-done
+if [ "${EXTRACTORS}" ]; then
+  printf "\nSetup extractors\n"
+  tcp_input_id=$(curl -s -XGET "${graylog_api}/system/inputs" | jq -r '.inputs[] | select(.title == "gelf_tcp_input") | .id')
+  for e in ${EXTRACTORS}; do
+    set_extractor ${e} ${tcp_input_id}
+  done
+fi
 
 printf "\nSetup SSO plugin\n"
 sso_role_name="sso_uw"
