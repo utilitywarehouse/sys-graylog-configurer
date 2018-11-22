@@ -79,20 +79,31 @@ set_admin()
   fi
 }
 
-if [ "${AWS_CLOUDTRAIL_PROD_ENABLED}" = "true" ]; then
-  input_name=aws_cloudtrail_input_prod
-  input_data='{"title":"'"${input_name}"'","type":"org.graylog.aws.inputs.cloudtrail.CloudTrailInput","configuration":{"aws_sqs_region":"eu-west-1","aws_s3_region":"eu-west-1","aws_sqs_queue_name":"'"${AWS_SQS_QUEUE_PROD}"'","aws_access_key":"'"${AWS_ID_PROD}"'","aws_secret_key":"'"${AWS_SECRET_PROD}"'"},"global":true}'
-  set_input ${input_name} ${input_data} cloudtrail-prod
-fi
+set_cloudtrail()
+{
+  account="$1"
+  eval aws_id=\$$2
+  if [ -z "$aws_id" ]; then errors="${errors}${2} is not set, ";fi
+  eval aws_secret=\$$3
+  if [ -z "$aws_secret" ]; then errors="${errors}${3} is not set, ";fi
 
-if [ "${AWS_CLOUDTRAIL_DEV_ENABLED}" = "true" ]; then
-  input_name=aws_cloudtrail_input_dev
-  input_data='{"title":"'"${input_name}"'","type":"org.graylog.aws.inputs.cloudtrail.CloudTrailInput","configuration":{"aws_sqs_region":"eu-west-1","aws_s3_region":"eu-west-1","aws_sqs_queue_name":"'"${AWS_SQS_QUEUE_DEV}"'","aws_access_key":"'"${AWS_ID_DEV}"'","aws_secret_key":"'"${AWS_SECRET_DEV}"'"},"global":true}'
-  set_input ${input_name} ${input_data} cloudtrail-dev
-fi
+  printf "\nSetup cloudtrail for uw-${account}\n"
+  input_name="aws_cloudtrail_input_${account}"
+  input_data='{"title":"'"${input_name}"'","type":"org.graylog.aws.inputs.cloudtrail.CloudTrailInput","configuration":{"aws_sqs_region":"eu-west-1","aws_s3_region":"eu-west-1","aws_sqs_queue_name":"local-account-cloudtrail","aws_access_key":"'"${aws_id}"'","aws_secret_key":"'"${aws_secret}"'"},"global":true}'
+
+  set_input "${input_name}" "${input_data}" "cloudtrail-${account}"
+}
 
 input_data='{"title":"gelf_tcp_input","type":"org.graylog2.inputs.gelf.tcp.GELFTCPInput","configuration":{"port":12202,"bind_address":"0.0.0.0"},"global":true}'
 set_input gelf_tcp_input ${input_data}
+
+if [ "${AWS_CLOUDTRAIL_ACCOUNTS}" ]; then
+  printf "\nSetup cloudtrails\n"
+  for c in ${AWS_CLOUDTRAIL_ACCOUNTS}; do
+    uppercase_account=$(echo "${c}" | tr a-z A-Z)
+    set_cloudtrail "${c}" "AWS_ID_${uppercase_account}" "AWS_SECRET_${uppercase_account}"
+  done
+fi
 
 printf "\nSetup extractors\n"
 tcp_input_id=$(curl -s -XGET "${graylog_api}/system/inputs" | jq -r '.inputs[] | select(.title == "gelf_tcp_input") | .id')
