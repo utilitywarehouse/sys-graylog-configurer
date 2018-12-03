@@ -52,7 +52,6 @@ set_extractor()
     sleep 5
     printf "\n${extractor} extractor created\n"
   else
-    echo "curling ${graylog_api}/system/inputs/${input_id}/extractors/${extractor_id}"
     curl -sf -X PUT -H "Content-Type: application/json" -d "${extractor_data}" "${graylog_api}/system/inputs/${input_id}/extractors/${extractor_id}" || errors="${errors}failed to update ${extractor} extractor, "
     sleep 5
     printf "\n${extractor} extractor updated\n"
