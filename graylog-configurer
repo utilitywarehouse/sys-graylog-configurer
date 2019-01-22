@@ -20,18 +20,18 @@ set_input()
 
   input_id=$(curl -s -XGET "${graylog_api}/system/inputs" | jq -r '.inputs[] | select(.title == "'"${input_name}"'") | .id')
   if [ ! "${input_id}" ]; then
-    curl -sf -X POST -H "Content-Type: application/json" -d "${input_data}" "${graylog_api}/system/inputs" || errors="${errors}failed to create ${input_name} input, "
+    curl -sf -X POST -H "Content-Type: application/json" -H "X-Requested-By: graylog-configurer" -d "${input_data}" "${graylog_api}/system/inputs" || errors="${errors}failed to create ${input_name} input, "
     sleep 5
     printf "\n${input_name} created\n"
   else
-    curl -sf -X PUT -H "Content-Type: application/json" -d "${input_data}" "${graylog_api}/system/inputs/${input_id}" || errors="${errors}failed to update ${input_name} input, "
+    curl -sf -X PUT -H "Content-Type: application/json" -H "X-Requested-By: graylog-configurer" -d "${input_data}" "${graylog_api}/system/inputs/${input_id}" || errors="${errors}failed to update ${input_name} input, "
     sleep 5
     printf "\n${input_name} updated\n"
   fi
 
   if [ "${origin}" ]; then
     input_id=$(curl -s -XGET "${graylog_api}/system/inputs" | jq -r '.inputs[] | select(.title == "'"${input_name}"'") | .id')
-    curl -sf -X POST -H "Content-Type: application/json" -d '{"key":"origin","value":"'"${origin}"'"}' "${graylog_api}/system/inputs/${input_id}/staticfields" || errors="${errors}failed to update ${origin} origin, "
+    curl -sf -X POST -H "Content-Type: application/json" -H "X-Requested-By: graylog-configurer" -d '{"key":"origin","value":"'"${origin}"'"}' "${graylog_api}/system/inputs/${input_id}/staticfields" || errors="${errors}failed to update ${origin} origin, "
     sleep 5
     printf "${origin} origin added to ${input_name}\n"
   fi
@@ -48,11 +48,11 @@ set_extractor()
   extractor_data='{"title":"'"${extractor}"'","cut_or_copy":"copy","source_field":"'"${extractor}"'","extractor_type":"json","target_field":"","extractor_config":{"key_prefix":"'"${extractor}"'."},"converters":{},"condition_type":"none","condition_value":""}'
   
   if [ ! "${extractor_id}" ]; then
-    curl -sf -X POST -H "Content-Type: application/json" -d "${extractor_data}" "${graylog_api}/system/inputs/${input_id}/extractors" || errors="${errors}failed to create ${extractor} extractor, "
+    curl -sf -X POST -H "Content-Type: application/json" -H "X-Requested-By: graylog-configurer" -d "${extractor_data}" "${graylog_api}/system/inputs/${input_id}/extractors" || errors="${errors}failed to create ${extractor} extractor, "
     sleep 5
     printf "\n${extractor} extractor created\n"
   else
-    curl -sf -X PUT -H "Content-Type: application/json" -d "${extractor_data}" "${graylog_api}/system/inputs/${input_id}/extractors/${extractor_id}" || errors="${errors}failed to update ${extractor} extractor, "
+    curl -sf -X PUT -H "Content-Type: application/json" -H "X-Requested-By: graylog-configurer" -d "${extractor_data}" "${graylog_api}/system/inputs/${input_id}/extractors/${extractor_id}" || errors="${errors}failed to update ${extractor} extractor, "
     sleep 5
     printf "\n${extractor} extractor updated\n"
   fi
@@ -68,11 +68,11 @@ set_admin()
   user_id=$(curl -s -H "Accept: application/json" -XGET "${graylog_api}/users/${username}" | jq -r '. | select(.username == "'"${username}"'") | .id')
   user_data='{"username":"'"${username}"'","email":"'"${username}"'@utilitywarehouse.co.uk","roles":["Admin"],"password":"'"${password}"'","full_name":"'"${username}"'", "permissions":[]}'
   if [ "${user_id}" ]; then
-    curl -sf -X PUT -H "Content-Type: application/json" -d "${user_data}" "${graylog_api}/users/${username}" || errors="${errors}failed to update ${username} admin, "
+    curl -sf -X PUT -H "Content-Type: application/json" -H "X-Requested-By: graylog-configurer" -d "${user_data}" "${graylog_api}/users/${username}" || errors="${errors}failed to update ${username} admin, "
     sleep 5
     printf "\n${username} admin updated\n"
   else
-    curl -sf -X POST -H "Content-Type: application/json" -d "${user_data}" "${graylog_api}/users" || errors="${errors}failed to create ${username} admin, "
+    curl -sf -X POST -H "Content-Type: application/json" -H "X-Requested-By: graylog-configurer" -d "${user_data}" "${graylog_api}/users" || errors="${errors}failed to create ${username} admin, "
     sleep 5
     printf "\n${username} admin created\n"
   fi
@@ -115,7 +115,7 @@ fi
 printf "\nSetup SSO plugin\n"
 sso_role_name="sso_uw"
 sso_plugin_config='{"username_header":"X-Forwarded-User","email_header":"X-Forwarded-Email","default_group":"'"${sso_role_name}"'","auto_create_user":true,"require_trusted_proxies":true}'
-curl -sf -X PUT -H "Content-Type: application/json" -d "${sso_plugin_config}" "${graylog_api}/plugins/org.graylog.plugins.auth.sso/config" || errors="${errors}failed to setup SSO plugin, "
+curl -sf -X PUT -H "Content-Type: application/json" -H "X-Requested-By: graylog-configurer" -d "${sso_plugin_config}" "${graylog_api}/plugins/org.graylog.plugins.auth.sso/config" || errors="${errors}failed to setup SSO plugin, "
 
 printf "\nSetup sso permissions\n"
 sso_permissions=$(echo "${SSO_PERMISSIONS}" | jq -c '.')
@@ -125,16 +125,16 @@ fi
 sso_role='{"name":"'"${sso_role_name}"'","permissions":'"${sso_permissions}"'}'
 existing_role=$(curl -s -H "Accept: application/json" -XGET "${graylog_api}/roles/${sso_role_name}" | jq -r '.name')
 if [ "${sso_role_name}" = "${existing_role}" ];then
-  curl -sf -X PUT -H "Content-Type: application/json" -d "${sso_role}" "${graylog_api}/roles/${sso_role_name}" || errors="${errors}failed to update ${sso_role_name} role, "
+  curl -sf -X PUT -H "Content-Type: application/json" -H "X-Requested-By: graylog-configurer" -d "${sso_role}" "${graylog_api}/roles/${sso_role_name}" || errors="${errors}failed to update ${sso_role_name} role, "
   printf "\n${sso_role_name} role updated\n"
 else
-  curl -sf -X POST -H "Content-Type: application/json" -d "${sso_role}" "${graylog_api}/roles" || errors="${errors}failed to create ${sso_role_name} role, "
+  curl -sf -X POST -H "Content-Type: application/json" -H "X-Requested-By: graylog-configurer" -d "${sso_role}" "${graylog_api}/roles" || errors="${errors}failed to create ${sso_role_name} role, "
   printf "\n${sso_role_name} role created\n"
 fi
 
 printf "\nConfigure authentication methods\n"
 auth_config='{"realm_order":["mongodb-session","sso","root-user","legacy-ldap","access-token","mongodb-password"],"disabled_realms":["legacy-ldap","access-token","mongodb-password"]}'
-curl -sf -X PUT -H "Content-Type: application/json" -d "${auth_config}" "${graylog_api}/system/authentication/config" || errors="${errors}failed to update authentication methods, "
+curl -sf -X PUT -H "Content-Type: application/json" -H "X-Requested-By: graylog-configurer" -d "${auth_config}" "${graylog_api}/system/authentication/config" || errors="${errors}failed to update authentication methods, "
 
 if [ "${ADMINS}" ]; then
   printf "\nSetup admins\n"
@@ -154,7 +154,7 @@ if [ "${ELASTICSEARCH_CUSTOM_TEMPLATE}" ]; then
   curl -sf -X PUT -H "Content-Type: application/json" -d "${custom_template}" "http://${ELASTICSEARCH_AUTHORITY}/_template/graylog-custom-template" || errors="${errors}failed to update elasticsearch custom template, "
   sleep 5
   # Rotate the active index to activate the new template
-  curl -sf -X POST "${graylog_api}/system/deflector/cycle" || errors="${errors}failed to cycle active index, "
+  curl -sf -X POST -H "X-Requested-By: graylog-configurer" "${graylog_api}/system/deflector/cycle" || errors="${errors}failed to cycle active index, "
 fi
 
 if [ "${errors}" ]; then
