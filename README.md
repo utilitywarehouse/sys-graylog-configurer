@@ -56,3 +56,9 @@ For configuration of https://github.com/Graylog2/graylog-plugin-aws. All variabl
 * `AWS_CLOUDTRAIL_ACCOUNTS`: space separated list of accounts to setup ingestion. Eg: `"dev prod"`
 * `AWS_ID_PROD`: aws user id for `prod` account
 * `AWS_SECRET_PROD`: aws user secret for `prod` account
+
+## To Do
+* Document testing against real api
+* Enable retry configuring
+* Prometheus metrics?
+
