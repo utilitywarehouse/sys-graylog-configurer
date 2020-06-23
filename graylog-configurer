@@ -1,22 +1,23 @@
 #!/bin/sh
+
 errors=""
-
-until curl -s "http://127.0.0.1:9000/api/system/lbstatus"; do
-  echo 'graylog not ready, sleeping for 3 seconds'
-  sleep 3
-done
-sleep 10
-printf "\n"
-
 graylog_api="http://admin:${ADMIN_PASSWORD}@127.0.0.1:9000/api"
 
-set_input()
-{
+wait_graylog_alive() {
+  until curl -s "http://127.0.0.1:9000/api/system/lbstatus"; do
+    printf "graylog not ready, sleeping for 3 seconds\n"
+    sleep 3
+  done
+  sleep 10
+  printf "\n"
+}
+
+set_input() {
   input_name="$1"
   input_data="$2"
   origin="$3"
 
-  printf "\nSetup ${input_name}\n"
+  printf "\nSetup ${input_name}\n---\n"
 
   input_id=$(curl -s -XGET "${graylog_api}/system/inputs" | jq -r '.inputs[] | select(.title == "'"${input_name}"'") | .id')
   if [ ! "${input_id}" ]; then
@@ -37,12 +38,11 @@ set_input()
   fi
 }
 
-set_extractor()
-{
+set_extractor() {
   extractor="$1"
   input_id="$2"
 
-  printf "\nSetup ${extractor} extractor\n"
+  printf "\nSetup ${extractor} extractor\n---\n"
 
   extractor_id=$(curl -s -XGET "${graylog_api}/system/inputs/${input_id}/extractors" | jq -r '.extractors[] | select(.title == "'"${extractor}"'") | .id')
   extractor_data='{"title":"'"${extractor}"'","cut_or_copy":"copy","source_field":"'"${extractor}"'","extractor_type":"json","target_field":"","extractor_config":{"key_prefix":"'"${extractor}"'."},"converters":{},"condition_type":"none","condition_value":""}'
@@ -58,66 +58,69 @@ set_extractor()
   fi
 }
 
-set_admin()
-{
+set_admin() {
   username="$1"
   # Password cannot be used to login, but is needed for user creation
   password=$(cat /dev/urandom | tr -dc A-Za-z0-9 | head -c 32)
 
-  printf "\nSetup ${username} as admin\n"
   user_id=$(curl -s -H "Accept: application/json" -XGET "${graylog_api}/users/${username}" | jq -r '. | select(.username == "'"${username}"'") | .id')
   user_data='{"username":"'"${username}"'","email":"'"${username}"'@utilitywarehouse.co.uk","roles":["Admin"],"password":"'"${password}"'","full_name":"'"${username}"'", "permissions":[]}'
   if [ "${user_id}" ]; then
     curl -sf -X PUT -H "Content-Type: application/json" -H "X-Requested-By: graylog-configurer" -d "${user_data}" "${graylog_api}/users/${username}" || errors="${errors}failed to update ${username} admin, "
     sleep 5
-    printf "\n${username} admin updated\n"
+    printf "${username} admin updated\n"
   else
     curl -sf -X POST -H "Content-Type: application/json" -H "X-Requested-By: graylog-configurer" -d "${user_data}" "${graylog_api}/users" || errors="${errors}failed to create ${username} admin, "
     sleep 5
-    printf "\n${username} admin created\n"
+    printf "${username} admin created\n"
   fi
 }
 
-set_cloudtrail()
-{
+set_cloudtrail() {
   account="$1"
   eval aws_id=\$$2
   if [ -z "$aws_id" ]; then errors="${errors}${2} is not set, ";fi
   eval aws_secret=\$$3
   if [ -z "$aws_secret" ]; then errors="${errors}${3} is not set, ";fi
 
-  printf "\nSetup cloudtrail for uw-${account}\n"
+  printf "\nSetup cloudtrail for uw-${account}\n---\n"
   input_name="aws_cloudtrail_input_${account}"
   input_data='{"title":"'"${input_name}"'","type":"org.graylog.aws.inputs.cloudtrail.CloudTrailInput","configuration":{"aws_sqs_region":"eu-west-1","aws_s3_region":"eu-west-1","aws_sqs_queue_name":"local-account-cloudtrail","aws_access_key":"'"${aws_id}"'","aws_secret_key":"'"${aws_secret}"'"},"global":true}'
 
   set_input "${input_name}" "${input_data}" "cloudtrail-${account}"
 }
 
+### START ###
+
+wait_graylog_alive
+
+## input
 input_data='{"title":"gelf_tcp_input","type":"org.graylog2.inputs.gelf.tcp.GELFTCPInput","configuration":{"port":12202,"bind_address":"0.0.0.0"},"global":true}'
 set_input gelf_tcp_input ${input_data}
 
+## cloudtrail
 if [ "${AWS_CLOUDTRAIL_ACCOUNTS}" ]; then
-  printf "\nSetup cloudtrails\n"
   for c in ${AWS_CLOUDTRAIL_ACCOUNTS}; do
     uppercase_account=$(echo "${c}" | tr a-z A-Z)
     set_cloudtrail "${c}" "AWS_ID_${uppercase_account}" "AWS_SECRET_${uppercase_account}"
   done
 fi
 
+## extractors
 if [ "${EXTRACTORS}" ]; then
-  printf "\nSetup extractors\n"
   tcp_input_id=$(curl -s -XGET "${graylog_api}/system/inputs" | jq -r '.inputs[] | select(.title == "gelf_tcp_input") | .id')
   for e in ${EXTRACTORS}; do
     set_extractor ${e} ${tcp_input_id}
   done
 fi
 
-printf "\nSetup SSO plugin\n"
+## sso plugin
+printf "\nSetup SSO plugin\n---\n"
 sso_role_name="sso_uw"
 sso_plugin_config='{"username_header":"X-Forwarded-User","email_header":"X-Forwarded-Email","default_group":"'"${sso_role_name}"'","auto_create_user":true,"require_trusted_proxies":true}'
 curl -sf -X PUT -H "Content-Type: application/json" -H "X-Requested-By: graylog-configurer" -d "${sso_plugin_config}" "${graylog_api}/plugins/org.graylog.plugins.auth.sso/config" || errors="${errors}failed to setup SSO plugin, "
 
-printf "\nSetup sso permissions\n"
+printf "\nSetup sso permissions\n---\n"
 sso_permissions=$(echo "${SSO_PERMISSIONS}" | jq -c '.')
 if [ ! "${sso_permissions}" ]; then
   sso_permissions='["*"]'
@@ -126,27 +129,29 @@ sso_role='{"name":"'"${sso_role_name}"'","permissions":'"${sso_permissions}"'}'
 existing_role=$(curl -s -H "Accept: application/json" -XGET "${graylog_api}/roles/${sso_role_name}" | jq -r '.name')
 if [ "${sso_role_name}" = "${existing_role}" ];then
   curl -sf -X PUT -H "Content-Type: application/json" -H "X-Requested-By: graylog-configurer" -d "${sso_role}" "${graylog_api}/roles/${sso_role_name}" || errors="${errors}failed to update ${sso_role_name} role, "
-  printf "\n${sso_role_name} role updated\n"
+  printf "${sso_role_name} role updated\n"
 else
   curl -sf -X POST -H "Content-Type: application/json" -H "X-Requested-By: graylog-configurer" -d "${sso_role}" "${graylog_api}/roles" || errors="${errors}failed to create ${sso_role_name} role, "
-  printf "\n${sso_role_name} role created\n"
+  printf "${sso_role_name} role created\n"
 fi
 
-printf "\nConfigure authentication methods\n"
+## authentication
+printf "\nConfigure authentication methods\n---\n"
 auth_config='{"realm_order":["mongodb-session","sso","root-user","legacy-ldap","access-token","mongodb-password"],"disabled_realms":["legacy-ldap","access-token","mongodb-password"]}'
 curl -sf -X PUT -H "Content-Type: application/json" -H "X-Requested-By: graylog-configurer" -d "${auth_config}" "${graylog_api}/system/authentication/config" || errors="${errors}failed to update authentication methods, "
 
 if [ "${ADMINS}" ]; then
-  printf "\nSetup admins\n"
+  printf "\nSetup admins\n---\n"
   for a in ${ADMINS}; do
     set_admin "${a}"
   done
 fi
 
+## elasticsearch template
 if [ "${ELASTICSEARCH_CUSTOM_TEMPLATE}" ]; then
   printf "\n\nSetup custom elastic search template\n"
   until curl -s "http://${ELASTICSEARCH_AUTHORITY}/_cluster/health"; do
-    echo 'elasticsearch not ready, sleeping for 3 seconds'
+    printf "elasticsearch not ready, sleeping for 3 seconds\n"
     sleep 3
   done
 
