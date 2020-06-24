@@ -4,7 +4,7 @@ errors=""
 graylog_api="http://admin:${ADMIN_PASSWORD}@127.0.0.1:9000/api"
 
 wait_graylog_alive() {
-  until curl -s "http://127.0.0.1:9000/api/system/lbstatus"; do
+  until curl -s "${graylog_api}/system/lbstatus"; do
     printf "graylog not ready, sleeping for 3 seconds\n"
     sleep 3
   done
@@ -154,12 +154,40 @@ if [ "${ELASTICSEARCH_CUSTOM_TEMPLATE}" ]; then
     printf "elasticsearch not ready, sleeping for 3 seconds\n"
     sleep 3
   done
+  printf "\n"
 
-  custom_template=$(echo "${ELASTICSEARCH_CUSTOM_TEMPLATE}" | jq -c)
-  curl -sf -X PUT -H "Content-Type: application/json" -d "${custom_template}" "http://${ELASTICSEARCH_AUTHORITY}/_template/graylog-custom-template" || errors="${errors}failed to update elasticsearch custom template, "
-  sleep 5
-  # Rotate the active index to activate the new template
-  curl -sf -X POST -H "X-Requested-By: graylog-configurer" "${graylog_api}/system/deflector/cycle" || errors="${errors}failed to cycle active index, "
+  stored_template=$(curl -sf "http://${ELASTICSEARCH_AUTHORITY}/_template/graylog-custom-template" | jq -rcS '."graylog-custom-template" // empty')
+  new_template=$(echo "${ELASTICSEARCH_CUSTOM_TEMPLATE}" | jq -rcS)
+
+  stored_mappings=$(echo "${stored_template}" | jq '."mappings"')
+  new_mappings=$(echo "${new_template}" | jq '."mappings"')
+  stored_interval=$(echo "${stored_template}" | jq '."settings"."index"."refresh_interval"')
+  new_interval=$(echo "${new_template}" | jq '."settings"."refresh_interval"')
+  stored_pattern=$(echo "${stored_template}" | jq '."index_patterns"[0]')
+  new_pattern=$(echo "${new_template}" | jq '."template"')
+
+  if [ ! "${new_mappings}" = "${stored_mappings}" ]; then
+    printf "changes in mappings detected\n"
+    mappings_diff="true"
+  fi
+  if [ ! "${new_interval}" = "${stored_interval}" ]; then
+    printf "changes in interval detected\n"
+    interval_diff="true"
+  fi
+  if [ ! "${new_pattern}" = "${stored_pattern}" ]; then
+    printf "changes in pattern detected\n"
+    pattern_diff="true"
+  fi
+
+  if [ "${mappings_diff}" -o "${interval_diff}" -o "${pattern_diff}" ]; then
+    curl -sf -X PUT -H "Content-Type: application/json" -d "${new_template}" "http://${ELASTICSEARCH_AUTHORITY}/_template/graylog-custom-template" || errors="${errors}failed to update elasticsearch custom template, "
+    sleep 5
+    # Cycling the active index to activate the new template
+    curl -sf -X POST -H "X-Requested-By: graylog-configurer" "${graylog_api}/system/deflector/cycle" || errors="${errors}failed to cycle active index, "
+    printf "template updated, cycling active index\n"
+  else
+    printf "template already setup, skipping\n"
+  fi
 fi
 
 if [ "${errors}" ]; then
