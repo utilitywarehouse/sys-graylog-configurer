@@ -90,6 +90,37 @@ set_cloudtrail() {
   set_input "${input_name}" "${input_data}" "cloudtrail-${account}"
 }
 
+check_template_sync() {
+  printf "checking if elasticsearch template is synced\n"
+  stored_template=$(curl -sf "http://${ELASTICSEARCH_AUTHORITY}/_template/graylog-custom-template" | jq -rcS '."graylog-custom-template" // empty')
+  new_template=$(echo "${ELASTICSEARCH_CUSTOM_TEMPLATE}" | jq -rcS)
+
+  stored_mappings=$(echo "${stored_template}" | jq '."mappings"')
+  new_mappings=$(echo "${new_template}" | jq '."mappings"')
+  stored_interval=$(echo "${stored_template}" | jq '."settings"."index"."refresh_interval"')
+  new_interval=$(echo "${new_template}" | jq '."settings"."refresh_interval"')
+  stored_pattern=$(echo "${stored_template}" | jq '."index_patterns"[0]')
+  new_pattern=$(echo "${new_template}" | jq '."template"')
+
+  if [ ! "${new_mappings}" = "${stored_mappings}" ]; then
+    printf "changes in mappings detected\n"
+    changes="true"
+  fi
+  if [ ! "${new_interval}" = "${stored_interval}" ]; then
+    printf "changes in interval detected\n"
+    changes="true"
+  fi
+  if [ ! "${new_pattern}" = "${stored_pattern}" ]; then
+    printf "changes in pattern detected\n"
+    changes="true"
+  fi
+
+  if [ ! "${changes}" ]; then
+    printf "elasticsearch template is synced\n"
+    template_synced="true"
+  fi
+}
+
 ### START ###
 
 wait_graylog_alive
@@ -156,37 +187,17 @@ if [ "${ELASTICSEARCH_CUSTOM_TEMPLATE}" ]; then
   done
   printf "\n"
 
-  stored_template=$(curl -sf "http://${ELASTICSEARCH_AUTHORITY}/_template/graylog-custom-template" | jq -rcS '."graylog-custom-template" // empty')
-  new_template=$(echo "${ELASTICSEARCH_CUSTOM_TEMPLATE}" | jq -rcS)
+  check_template_sync
 
-  stored_mappings=$(echo "${stored_template}" | jq '."mappings"')
-  new_mappings=$(echo "${new_template}" | jq '."mappings"')
-  stored_interval=$(echo "${stored_template}" | jq '."settings"."index"."refresh_interval"')
-  new_interval=$(echo "${new_template}" | jq '."settings"."refresh_interval"')
-  stored_pattern=$(echo "${stored_template}" | jq '."index_patterns"[0]')
-  new_pattern=$(echo "${new_template}" | jq '."template"')
-
-  if [ ! "${new_mappings}" = "${stored_mappings}" ]; then
-    printf "changes in mappings detected\n"
-    mappings_diff="true"
-  fi
-  if [ ! "${new_interval}" = "${stored_interval}" ]; then
-    printf "changes in interval detected\n"
-    interval_diff="true"
-  fi
-  if [ ! "${new_pattern}" = "${stored_pattern}" ]; then
-    printf "changes in pattern detected\n"
-    pattern_diff="true"
-  fi
-
-  if [ "${mappings_diff}" -o "${interval_diff}" -o "${pattern_diff}" ]; then
+  if [ ! "${template_synced}" ]; then
+    printf "setting new template\n"
     curl -sf -X PUT -H "Content-Type: application/json" -d "${new_template}" "http://${ELASTICSEARCH_AUTHORITY}/_template/graylog-custom-template" || errors="${errors}failed to update elasticsearch custom template, "
-    sleep 5
-    # Cycling the active index to activate the new template
+    until [ "${template_synced}" ]; do
+      check_template_sync
+      sleep 3
+    done
+    printf "cycling active index to active new template\n"
     curl -sf -X POST -H "X-Requested-By: graylog-configurer" "${graylog_api}/system/deflector/cycle" || errors="${errors}failed to cycle active index, "
-    printf "template updated, cycling active index\n"
-  else
-    printf "template already setup, skipping\n"
   fi
 fi
 
