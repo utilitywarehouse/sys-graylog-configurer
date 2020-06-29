@@ -56,3 +56,10 @@ For configuration of https://github.com/Graylog2/graylog-plugin-aws. All variabl
 * `AWS_CLOUDTRAIL_ACCOUNTS`: space separated list of accounts to setup ingestion. Eg: `"dev prod"`
 * `AWS_ID_PROD`: aws user id for `prod` account
 * `AWS_SECRET_PROD`: aws user secret for `prod` account
+
+### Graylog default index configuration
+Basic configuration of the graylog index. It is assumed that the rotation strategy is "size" , and the retention strategy is "delete" (https://docs.graylog.org/en/latest/pages/configuration/server.conf.html#rotation)
+* `GRAYLOG_INDEX_SHARDS`: number of shards of each index (for graylog workload, a good number is 1 per node)
+* `GRAYLOG_INDEX_REPLICAS`: number of replicas for each index (1 is generally enough for logs)
+* `GRAYLOG_INDEX_MAX_SIZE`: maximum size in bytes of an index before a new index is created
+* `GRAYLOG_MAX_INDICES`: how many indices to keep
