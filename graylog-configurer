@@ -124,6 +124,7 @@ check_template_sync() {
   printf "checking if elasticsearch template is synced\n"
   stored_template=$(curl -sf "http://${ELASTICSEARCH_AUTHORITY}/_template/graylog-custom-template" | jq -rcS '."graylog-custom-template" // empty')
   new_template=$(echo "${ELASTICSEARCH_CUSTOM_TEMPLATE}" | jq -rcS)
+  changes=""
 
   stored_mappings=$(echo "${stored_template}" | jq '."mappings"')
   new_mappings=$(echo "${new_template}" | jq '."mappings"')
