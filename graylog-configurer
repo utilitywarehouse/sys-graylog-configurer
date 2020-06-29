@@ -12,6 +12,36 @@ wait_graylog_alive() {
   printf "\n"
 }
 
+set_graylog_index() {
+  shards="$1"
+  replicas="$2"
+  max_size="$3"
+  max_indices="$4"
+  rotation_strategy='{"type":"org.graylog2.indexer.rotation.strategies.SizeBasedRotationStrategyConfig","max_size":'${max_size}'}'
+  retention_strategy='{"type":"org.graylog2.indexer.retention.strategies.DeletionRetentionStrategyConfig","max_number_of_indices":'${max_indices}'}'
+
+  printf "\nSetup graylog default index\n---\n"
+
+  stored_config=$(curl -s -XGET "${graylog_api}/system/indices/index_sets" | jq -rc '.index_sets[] | select(.index_prefix == "graylog")')
+
+  index_id=$(echo $stored_config | jq -rc '.id')
+  updated_config=$(echo $stored_config | jq -rc '.
+    | .shards = '${shards}'
+    | .replicas = '${replicas}'
+    | .rotation_strategy_class = "org.graylog2.indexer.rotation.strategies.SizeBasedRotationStrategy"
+    | .rotation_strategy = '${rotation_strategy}'
+    | .retention_strategy_class = "org.graylog2.indexer.retention.strategies.DeletionRetentionStrategy"
+    | .retention_strategy = '${retention_strategy}'
+  ')
+
+  if [ ! "${stored_config}" = "${updated_config}" ]; then
+    printf "graylog index updated\n"
+    curl -sf -X PUT -H "Content-Type: application/json" -H "X-Requested-By: graylog-configurer" -d "${updated_config}" "${graylog_api}/system/indices/index_sets/${index_id}" || errors="${errors}failed to graylog default index, "
+  else
+    printf "no changes in index configuration\n"
+  fi
+}
+
 set_input() {
   input_name="$1"
   input_data="$2"
@@ -124,6 +154,28 @@ check_template_sync() {
 ### START ###
 
 wait_graylog_alive
+
+## graylog index
+if [ ! "${GRAYLOG_INDEX_SHARDS}" ]; then
+  errors="${errors}missing config: graylog index shards, "
+  missing="true"
+fi
+if [ ! "${GRAYLOG_INDEX_REPLICAS}" ]; then
+  errors="${errors}missing config: graylog index replicas, "
+  missing="true"
+fi
+if [ ! "${GRAYLOG_INDEX_MAX_SIZE}" ]; then
+  errors="${errors}missing config: graylog index max size, "
+  missing="true"
+fi
+if [ ! "${GRAYLOG_MAX_INDICES}" ]; then
+  errors="${errors}missing config: graylog max indices, "
+  missing="true"
+fi
+
+if [ ! "${missing}" ]; then
+  set_graylog_index "${GRAYLOG_INDEX_SHARDS}" "${GRAYLOG_INDEX_REPLICAS}" "${GRAYLOG_INDEX_MAX_SIZE}" "${GRAYLOG_MAX_INDICES}"
+fi
 
 ## input
 input_data='{"title":"gelf_tcp_input","type":"org.graylog2.inputs.gelf.tcp.GELFTCPInput","configuration":{"port":12202,"bind_address":"0.0.0.0"},"global":true}'
