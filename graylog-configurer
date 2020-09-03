@@ -93,8 +93,8 @@ set_admin() {
   # Password cannot be used to login, but is needed for user creation
   password=$(cat /dev/urandom | tr -dc A-Za-z0-9 | head -c 32)
 
-  user_id=$(curl -s -H "Accept: application/json" -XGET "${graylog_api}/users/${username}" | jq -r '. | select(.username == "'"${username}"'") | .id')
-  user_data='{"username":"'"${username}"'","email":"'"${username}"'@utilitywarehouse.co.uk","roles":["Admin"],"password":"'"${password}"'","full_name":"'"${username}"'", "permissions":[]}'
+  user_id=$(curl -s -H "Accept: application/json" -XGET "${graylog_api}/users/${username}@uw.co.uk" | jq -r '. | select(.username == "'"${username}"'@uw.co.uk") | .id')
+  user_data='{"username":"'"${username}"'@uw.co.uk","email":"'"${username}"'@uw.co.uk","roles":["Admin"],"password":"'"${password}"'","full_name":"'"${username}"'@uw.co.uk", "permissions":[]}'
   if [ "${user_id}" ]; then
     curl -sf -X PUT -H "Content-Type: application/json" -H "X-Requested-By: graylog-configurer" -d "${user_data}" "${graylog_api}/users/${username}" || errors="${errors}failed to update ${username} admin, "
     sleep 5
@@ -201,7 +201,7 @@ fi
 ## sso plugin
 printf "\nSetup SSO plugin\n---\n"
 sso_role_name="sso_uw"
-sso_plugin_config='{"username_header":"X-Forwarded-User","email_header":"X-Forwarded-Email","default_group":"'"${sso_role_name}"'","auto_create_user":true,"require_trusted_proxies":true}'
+sso_plugin_config='{"username_header":"X-Forwarded-Email","email_header":"X-Forwarded-Email","default_group":"'"${sso_role_name}"'","auto_create_user":true,"require_trusted_proxies":true}'
 curl -sf -X PUT -H "Content-Type: application/json" -H "X-Requested-By: graylog-configurer" -d "${sso_plugin_config}" "${graylog_api}/plugins/org.graylog.plugins.auth.sso/config" || errors="${errors}failed to setup SSO plugin, "
 
 printf "\nSetup sso permissions\n---\n"
