@@ -96,7 +96,7 @@ set_admin() {
   user_id=$(curl -s -H "Accept: application/json" -XGET "${graylog_api}/users/${username}@uw.co.uk" | jq -r '. | select(.username == "'"${username}"'@uw.co.uk") | .id')
   user_data='{"username":"'"${username}"'@uw.co.uk","email":"'"${username}"'@uw.co.uk","roles":["Admin"],"password":"'"${password}"'","full_name":"'"${username}"'@uw.co.uk", "permissions":[]}'
   if [ "${user_id}" ]; then
-    curl -sf -X PUT -H "Content-Type: application/json" -H "X-Requested-By: graylog-configurer" -d "${user_data}" "${graylog_api}/users/${username}" || errors="${errors}failed to update ${username} admin, "
+    curl -sf -X PUT -H "Content-Type: application/json" -H "X-Requested-By: graylog-configurer" -d "${user_data}" "${graylog_api}/users/${username}@uw.co.uk" || errors="${errors}failed to update ${username} admin, "
     sleep 5
     printf "${username} admin updated\n"
   else
