@@ -1,0 +1,37 @@
+kind: pipeline
+type: kubernetes
+name: default
+
+steps:
+  - name: fetch-with-tags
+    image: docker:git
+    commands:
+      - git fetch --tags
+
+  - name: define-image-tags
+    image: alpine
+    commands:
+      - test -n "${DRONE_BRANCH}" && echo -n "${DRONE_BRANCH}," > .tags || true
+      - test "${DRONE_BRANCH}" == "master" && echo -n "latest,${DRONE_COMMIT}," >> .tags || true
+      - test -n "${DRONE_TAG}" && echo -n "${DRONE_TAG}," >> .tags || true
+      - sed -i "s/,$//" .tags
+
+  - name: build-and-publish
+    image: plugins/docker
+    settings:
+      username:
+        from_secret: DOCKER_USERNAME
+      password:
+        from_secret: DOCKER_PASSWORD
+      repo: quay.io/${DRONE_REPO}
+      registry: quay.io
+
+  - name: vulnerability-scanning
+    image: quay.io/utilitywarehouse/clair-query:4.0.5-1
+    environment:
+      QUERY_REPO: quay.io/${DRONE_REPO}:${DRONE_BRANCH}
+
+trigger:
+  event:
+    exclude:
+      - pull_request
